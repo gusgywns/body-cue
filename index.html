@@ -1380,7 +1380,8 @@ const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S.m))}catch(e){}};
 const lv=id=>(S.m[id]&&S.m[id].v)||'mid';
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const ERR={not_granted:'API 키가 없거나 올바르지 않습니다. 첫 화면 아래 “AI 설정”에서 키를 넣어 주세요.',network:'Gemma 4 서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도하세요.',rate_limited:'요청이 많습니다. 잠시 뒤에 다시 시도하세요.',images_unavailable:'이 화면에서는 사진을 보낼 수 없습니다. 아래에서 직접 고르세요.',image_rejected:'이 파일은 읽을 수 없습니다. JPG나 PNG 사진으로 다시 올리세요.'};
-const errMsg=e=>ERR[e&&e.code]||'판정하지 못했습니다. 다시 시도하거나 아래에서 직접 고르세요.';
+const det=e=>e&&e.message?' [원인: '+String(e.message).slice(0,260)+']':'';
+const errMsg=e=>(ERR[e&&e.code]||'판정하지 못했습니다. 다시 시도하거나 아래에서 직접 고르세요.')+det(e);
 
 /* ───────── 화면 ───────── */
 function tagHtml(id){const t=T[id];return `${esc(t.name)}: ${esc(t.tag[lv(id)])}`}
@@ -1391,7 +1392,7 @@ function viewHome(){
   <p class="lede">키우고 싶은 부위를 고르세요. 그 부위에 필요한 측정을 영상으로 안내하고, 결과에 맞춘 프리웨이트·머신 큐를 하나씩 드립니다.</p>
   <div class="regions">${REGIONS.map(([n,ps])=>`<div class="region"><div class="region-name">${n}</div><div class="subs">${ps.map(p=>`<button class="sub" data-act="part" data-id="${p}">${PARTS[p].name}</button>`).join('')}</div></div>`).join('')}</div>
   <section class="custom" style="margin-top:40px"><h3>AI 설정</h3>
-    ${PROXY_URL?'<p class="note" style="margin:0">사진 판정, 요청 운동 큐, 질문 채팅은 Gemma 4로 동작합니다. 따로 설정할 것은 없습니다.</p>':`<p class="note" style="margin:0">사진 판정, 요청 운동 큐, 질문 채팅은 Google의 Gemma 4로 동작합니다. Google AI Studio에서 받은 API 키를 넣으세요. 키는 이 브라우저에만 저장되고, 없어도 측정을 직접 고르는 방식과 기본 큐·영상은 모두 쓸 수 있습니다.</p>
+    ${PROXY_URL?'<p class="note" style="margin:0">사진 판정, 요청 운동 큐, 질문 채팅은 Gemma 4로 동작합니다. 따로 설정할 것은 없습니다.</p><div class="row"><button class="primary" data-act="savekey">연결 확인</button></div>':`<p class="note" style="margin:0">사진 판정, 요청 운동 큐, 질문 채팅은 Google의 Gemma 4로 동작합니다. Google AI Studio에서 받은 API 키를 넣으세요. 키는 이 브라우저에만 저장되고, 없어도 측정을 직접 고르는 방식과 기본 큐·영상은 모두 쓸 수 있습니다.</p>
     <div class="row"><input id="gk" type="password" autocomplete="off" placeholder="${cfg.key?'저장된 키가 있습니다. 바꾸려면 새 키를 입력하세요':'Gemma(Gemini API) 키'}" aria-label="API 키"><select id="gm" aria-label="모델">${MODELS.map(m=>`<option${m===cfg.model?' selected':''}>${m}</option>`).join('')}</select><button class="primary" data-act="savekey">저장하고 연결 확인</button></div>
     ${cfg.key?'<p class="note" style="margin:8px 0 0"><button class="linkbtn" data-act="delkey">저장된 키 지우기</button></p>':''}`}
     <p class="status" id="gs" role="status"></p></section>
@@ -1578,7 +1579,7 @@ JSON만 답하세요: {"vars":[{"n":"방식 이름","pro":"장점","con":"단점
       c.joints=(Array.isArray(r.joints)?r.joints:[]).filter(j=>Array.isArray(j)&&j.length>1).map(j=>[String(j[0]),String(j[1])]);
       render();
     }
-  }catch(e){if(S.custom===c){c.err=e&&e.code==='rate_limited'?ERR.rate_limited:e&&e.code==='not_granted'?ERR.not_granted:'큐를 만들지 못했습니다. 다시 시도해 주세요.';render()}}
+  }catch(e){if(S.custom===c){c.err=e&&e.code==='rate_limited'?ERR.rate_limited:e&&e.code==='not_granted'?ERR.not_granted:'큐를 만들지 못했습니다. 다시 시도해 주세요.';c.err+=det(e);render()}}
 }
 
 /* ───────── 질문 채팅(Gemma 4) ───────── */
@@ -1617,7 +1618,7 @@ ${ids.length?ids.map(id=>`  ${T[id].name}: ${T[id].tag[lv(id)]} (${T[id].opts[lv
     S.chat.push({role:'assistant',content:r.text});
   }catch(e){
     S.chat.pop();
-    errText=e&&e.code==='rate_limited'?ERR.rate_limited:e&&e.code==='not_granted'?ERR.not_granted:'답을 받지 못했습니다. 다시 보내 주세요.';
+    errText=e&&e.code==='rate_limited'?ERR.rate_limited:e&&e.code==='not_granted'?ERR.not_granted:'답을 받지 못했습니다. 다시 보내 주세요.';errText+=det(e);
   }
   chatBusy=false;
   const lg=document.getElementById('log');
@@ -1649,28 +1650,34 @@ document.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.isComposing) retur
 /* ───────── Gemma 4 연결 ─────────
    PROXY_URL을 채우면 방문자는 키 없이 쓸 수 있습니다(키는 중계 서버에만 둡니다).
    비워 두면 첫 화면의 “AI 설정”에 입력한 키로 Google API를 직접 부릅니다. */
-const PROXY_URL='body-cue.hjhyun0113.workers.dev';
+const PROXY_URL='';
 const GKEY='bodycue.gemma.key',GMODEL='bodycue.gemma.model',MODELS=['gemma-4-31b-it','gemma-4-26b-a4b-it'];
 const cfg={get key(){try{return localStorage.getItem(GKEY)||''}catch(e){return ''}},get model(){try{const m=localStorage.getItem(GMODEL);return MODELS.includes(m)?m:MODELS[0]}catch(e){return MODELS[0]}}};
 const b64=blob=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej({code:'image_rejected'});r.readAsDataURL(blob)});
+async function gemmaCall(model,body){
+  if(PROXY_URL) return fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,body})});
+  if(!cfg.key) throw {code:'not_granted',message:'키 없음'};
+  return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':cfg.key},body:JSON.stringify(body)});
+}
 async function gemma(contents,think){
-  const body={contents,generationConfig:{thinkingConfig:{thinkingLevel:think?'high':'minimal'}}};
-  let r;
-  try{
-    if(PROXY_URL) r=await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:cfg.model,body})});
-    else{
-      if(!cfg.key) throw {code:'not_granted'};
-      r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+cfg.model+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':cfg.key},body:JSON.stringify(body)});
-    }
-  }catch(e){throw e&&e.code?e:{code:'network'}}
-  if(r.status===429) throw {code:'rate_limited'};
-  if(r.status===401||r.status===403) throw {code:'not_granted'};
-  let d=null;try{d=await r.json()}catch(e){}
-  if(!r.ok){const m=d&&d.error&&d.error.message||'';throw {code:/API key/i.test(m)?'not_granted':'failed',message:m}}
-  const parts=d&&d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts||[];
-  const text=parts.filter(p=>p&&!p.thought&&typeof p.text==='string').map(p=>p.text).join('').trim();
-  if(!text) throw {code:'failed'};
-  return text;
+  /* 설정을 바꿔 가며 최대 세 번 시도: 생각 수준 지정 → 지정 없음 → 다른 모델 */
+  const tries=[[cfg.model,{contents,generationConfig:{thinkingConfig:{thinkingLevel:think?'high':'minimal'}}}],[cfg.model,{contents}],[MODELS.find(m=>m!==cfg.model),{contents}]];
+  let last={code:'failed',message:''};
+  for(const [model,body] of tries){
+    let r;
+    try{r=await gemmaCall(model,body)}catch(e){throw e&&e.code?e:{code:'network',message:'요청이 차단됐거나 주소가 틀림: '+(PROXY_URL||'Google API')+' / '+(e&&e.message||'')}}
+    let raw='';try{raw=await r.text()}catch(e){}
+    let d=null;try{d=JSON.parse(raw)}catch(e){}
+    const msg=(d&&d.error&&(d.error.message||d.error.status))||raw.slice(0,200);
+    if(r.status===429) throw {code:'rate_limited',message:'429 '+msg};
+    if(r.status===401||r.status===403||/API key/i.test(msg)) throw {code:'not_granted',message:r.status+' '+msg};
+    if(!r.ok){last={code:'failed',message:r.status+' '+model+': '+msg};continue}
+    const parts=d&&d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts||[];
+    const text=parts.filter(p=>p&&!p.thought&&typeof p.text==='string').map(p=>p.text).join('').trim();
+    if(text) return text;
+    last={code:'failed',message:'응답에 글이 없음: '+raw.slice(0,200)};
+  }
+  throw last;
 }
 AI.fn=async function(input,opts){
   const turns=typeof input==='string'?[{role:'user',content:input}]:input;
@@ -1690,7 +1697,7 @@ AI.fn.json=async function(prompt,opts){
 AI.img=true;
 ACT.savekey=()=>{const k=document.getElementById('gk'),m=document.getElementById('gm'),st=document.getElementById('gs');
   try{if(k&&k.value.trim())localStorage.setItem(GKEY,k.value.trim());if(m)localStorage.setItem(GMODEL,m.value)}catch(e){}
-  if(st){st.className='status';st.textContent='저장했습니다. 연결을 확인하는 중입니다…'}
+  if(st){st.className='status';st.textContent='연결을 확인하는 중입니다…'}
   AI.fn('"연결됨"이라고만 답하세요.').then(()=>{const s2=document.getElementById('gs');if(s2){s2.className='status';s2.textContent='Gemma 4에 연결됐습니다.'}},e=>{const s2=document.getElementById('gs');if(s2){s2.className='status err';s2.textContent=errMsg(e)}});
 };
 ACT.delkey=()=>{try{localStorage.removeItem(GKEY)}catch(e){}render()};
