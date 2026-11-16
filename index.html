@@ -1650,7 +1650,7 @@ document.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.isComposing) retur
 /* ───────── Gemma 4 연결 ─────────
    PROXY_URL을 채우면 방문자는 키 없이 쓸 수 있습니다(키는 중계 서버에만 둡니다).
    비워 두면 첫 화면의 “AI 설정”에 입력한 키로 Google API를 직접 부릅니다. */
-const PROXY_URL='https://script.google.com/macros/s/AKfycbyly1MtY9YqpkTu7ZWICWtm_ayzdFkddSSiuJIZauzYHnbb2SjCAy3hkkHcMyU40QgA/exec';
+const PROXY_URL='https://script.google.com/macros/s/AKfycbx46ZFSB_6_MW29ntZ_TJH0k2MZJRLfr7-itQkx-x2-3LHwhQ2tX3omH3h9HmJUKiM/exec';
 const GKEY='bodycue.gemma.key',GMODEL='bodycue.gemma.model',MODELS=['gemma-4-31b-it','gemma-4-26b-a4b-it'];
 const cfg={get key(){try{return localStorage.getItem(GKEY)||''}catch(e){return ''}},get model(){try{const m=localStorage.getItem(GMODEL);return MODELS.includes(m)?m:MODELS[0]}catch(e){return MODELS[0]}}};
 const b64=blob=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej({code:'image_rejected'});r.readAsDataURL(blob)});
