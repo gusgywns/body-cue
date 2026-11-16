@@ -1379,7 +1379,7 @@ try{S.m=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){S.m={}}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S.m))}catch(e){}};
 const lv=id=>(S.m[id]&&S.m[id].v)||'mid';
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const ERR={not_granted:'API 키가 없거나 올바르지 않습니다. 첫 화면 아래 “AI 설정”에서 키를 넣어 주세요.',network:'Gemma 4 서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도하세요.',busy:'Google의 Gemma 4 서버가 지금 오류를 돌려주고 있습니다. 설정 문제가 아니니 1–2분 뒤에 다시 시도하세요.',rate_limited:'요청이 많습니다. 잠시 뒤에 다시 시도하세요.',images_unavailable:'이 화면에서는 사진을 보낼 수 없습니다. 아래에서 직접 고르세요.',image_rejected:'이 파일은 읽을 수 없습니다. JPG나 PNG 사진으로 다시 올리세요.'};
+const ERR={not_granted:'API 키가 없거나 올바르지 않습니다. 첫 화면 아래 “AI 설정”에서 키를 넣어 주세요.',network:'Gemma 4 서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도하세요.',geo:'중계 서버가 Google이 막아 둔 지역을 거쳐 나가고 있습니다. 페이지나 키 문제가 아니라 중계 서버의 위치 문제입니다.',busy:'Google의 Gemma 4 서버가 지금 오류를 돌려주고 있습니다. 설정 문제가 아니니 1–2분 뒤에 다시 시도하세요.',rate_limited:'요청이 많습니다. 잠시 뒤에 다시 시도하세요.',images_unavailable:'이 화면에서는 사진을 보낼 수 없습니다. 아래에서 직접 고르세요.',image_rejected:'이 파일은 읽을 수 없습니다. JPG나 PNG 사진으로 다시 올리세요.'};
 const det=e=>e&&e.message?' [원인: '+String(e.message).slice(0,420)+']':'';
 const errMsg=e=>(ERR[e&&e.code]||'판정하지 못했습니다. 다시 시도하거나 아래에서 직접 고르세요.')+det(e);
 
@@ -1650,12 +1650,12 @@ document.addEventListener('keydown',e=>{if(e.key!=='Enter'||e.isComposing) retur
 /* ───────── Gemma 4 연결 ─────────
    PROXY_URL을 채우면 방문자는 키 없이 쓸 수 있습니다(키는 중계 서버에만 둡니다).
    비워 두면 첫 화면의 “AI 설정”에 입력한 키로 Google API를 직접 부릅니다. */
-const PROXY_URL='https://body-cue.hjhyun0113.workers.dev/';
+const PROXY_URL='';
 const GKEY='bodycue.gemma.key',GMODEL='bodycue.gemma.model',MODELS=['gemma-4-31b-it','gemma-4-26b-a4b-it'];
 const cfg={get key(){try{return localStorage.getItem(GKEY)||''}catch(e){return ''}},get model(){try{const m=localStorage.getItem(GMODEL);return MODELS.includes(m)?m:MODELS[0]}catch(e){return MODELS[0]}}};
 const b64=blob=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej({code:'image_rejected'});r.readAsDataURL(blob)});
 async function gemmaCall(model,body){
-  if(PROXY_URL) return fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,body})});
+  if(PROXY_URL) return fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({model,body})});
   if(!cfg.key) throw {code:'not_granted',message:'키 없음'};
   return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':cfg.key},body:JSON.stringify(body)});
 }
@@ -1664,7 +1664,7 @@ async function gemma(contents,think){
   /* Google의 Gemma 4 서버는 500 오류를 자주 돌려주므로, 설정과 모델을 바꿔 가며 쉬었다가 여러 번 다시 시도한다 */
   const other=MODELS.find(m=>m!==cfg.model),plain={contents},thk={contents,generationConfig:{thinkingConfig:{thinkingLevel:think?'high':'minimal'}}};
   const tries=[[cfg.model,thk,0],[cfg.model,plain,0],[other,plain,0],[cfg.model,plain,3000],[other,plain,0],[cfg.model,plain,7000],[other,plain,0]];
-  const errs=[],t0=Date.now();
+  const errs=[],t0=Date.now();let geo=0;
   for(const [model,body,pause] of tries){
     if(pause){if(Date.now()-t0>80000) break;await wait(pause)}
     let r;
@@ -1672,16 +1672,18 @@ async function gemma(contents,think){
     let raw='';try{raw=await r.text()}catch(e){}
     let d=null;try{d=JSON.parse(raw)}catch(e){}
     const msg=(d&&d.error&&(d.error.message||d.error.status))||raw.slice(0,120);
-    if(r.status===429) throw {code:'rate_limited',message:'429 '+msg};
-    if(r.status===401||r.status===403||/API key/i.test(msg)) throw {code:'not_granted',message:r.status+' '+msg};
-    if(!r.ok){errs.push(r.status+' '+model.replace('gemma-4-','')+(body===thk?'(생각 설정)':'')+': '+String(msg).slice(0,70));continue}
+    const st=(d&&d.error&&+d.error.code)||r.status,ok=r.ok&&!(d&&d.error);
+    if(st===429) throw {code:'rate_limited',message:'429 '+msg};
+    if(st===401||st===403||/API key/i.test(msg)) throw {code:'not_granted',message:st+' '+msg};
+    if(/location is not supported/i.test(msg)) geo++;
+    if(!ok){errs.push(st+' '+model.replace('gemma-4-','')+(body===thk?'(생각 설정)':'')+': '+String(msg).slice(0,70));continue}
     const parts=d&&d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts||[];
     const text=parts.filter(p=>p&&!p.thought&&typeof p.text==='string').map(p=>p.text).join('').trim();
     if(text) return text;
     errs.push('글 없는 응답 '+model.replace('gemma-4-','')+': '+raw.slice(0,70));
   }
   const all500=errs.length&&errs.every(x=>x.startsWith('500')||x.startsWith('503'));
-  throw {code:all500?'busy':'failed',message:errs.length+'번 시도 — '+[...new Set(errs)].join(' | ')};
+  throw {code:geo?'geo':all500?'busy':'failed',message:errs.length+'번 시도 — '+[...new Set(errs)].join(' | ')};
 }
 AI.fn=async function(input,opts){
   const turns=typeof input==='string'?[{role:'user',content:input}]:input;
